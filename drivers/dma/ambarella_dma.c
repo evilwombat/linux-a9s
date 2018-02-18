@@ -1029,9 +1029,7 @@ static int ambarella_dma_probe(struct platform_device *pdev)
 	struct ambdma_chan *amb_chan;
 	struct device_node *np = pdev->dev.of_node;
 	int i, ret = 0;
-#if (DMA_SUPPORT_SELECT_CHANNEL == 1)
 	int val;
-#endif
 
 	/* alloc the amba dma engine struct */
 	amb_dma = kzalloc(sizeof(*amb_dma), GFP_KERNEL);
