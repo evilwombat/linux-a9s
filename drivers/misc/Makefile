@@ -55,3 +55,4 @@ obj-$(CONFIG_LATTICE_ECP3_CONFIG)	+= lattice-ecp3-config.o
 obj-$(CONFIG_SRAM)		+= sram.o
 obj-$(CONFIG_AMBARELLA_HEAPMEM)	+= amba_heapmem.o
 obj-$(CONFIG_AMBARELLA_DSPMEM)	+= amba_dspmem.o
+obj-$(CONFIG_I2C_REG_DUMMY)	+= i2c-reg-dummy.o

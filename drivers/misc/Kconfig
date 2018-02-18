@@ -535,6 +535,15 @@ config AMBARELLA_DSPMEM
 	bool "Ambarella DSP mem driver"
 	default y
 
+config I2C_REG_DUMMY
+	tristate "Dummy I2C register driver"
+	default n
+	help
+	  This is a rudimentary driver for loading a binary blob from device
+	  tree into the register space of an I2C slave.
+
+	  If you don't know what this means, you don't need it.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
