@@ -1241,6 +1241,30 @@ int nand_update_bbt(struct mtd_info *mtd, loff_t offs)
 static uint8_t scan_ff_pattern[] = { 0xff, 0xff };
 
 /* Generic flash bbt descriptors */
+#ifdef CONFIG_PLAT_AMBARELLA_AMBALINK
+static uint8_t bbt_pattern[] = {'B', 'b', 't', '2' };
+static uint8_t mirror_pattern[] = {'3', 't', 'b', 'B' };
+
+static struct nand_bbt_descr bbt_main_descr = {
+	.options = NAND_BBT_LASTBLOCK | NAND_BBT_CREATE | NAND_BBT_WRITE
+		| NAND_BBT_2BIT | NAND_BBT_VERSION | NAND_BBT_PERCHIP,
+	.offs =	1,
+	.len = 4,
+	.veroffs = 12,
+	.maxblocks = NAND_BBT_SCAN_MAXBLOCKS,
+	.pattern = bbt_pattern
+};
+
+static struct nand_bbt_descr bbt_mirror_descr = {
+	.options = NAND_BBT_LASTBLOCK | NAND_BBT_CREATE | NAND_BBT_WRITE
+		| NAND_BBT_2BIT | NAND_BBT_VERSION | NAND_BBT_PERCHIP,
+	.offs =	1,
+	.len = 4,
+	.veroffs = 12,
+	.maxblocks = NAND_BBT_SCAN_MAXBLOCKS,
+	.pattern = mirror_pattern
+};
+#else
 static uint8_t bbt_pattern[] = {'B', 'b', 't', '0' };
 static uint8_t mirror_pattern[] = {'1', 't', 'b', 'B' };
 
@@ -1263,6 +1287,7 @@ static struct nand_bbt_descr bbt_mirror_descr = {
 	.maxblocks = NAND_BBT_SCAN_MAXBLOCKS,
 	.pattern = mirror_pattern
 };
+#endif
 
 static struct nand_bbt_descr bbt_main_no_oob_descr = {
 	.options = NAND_BBT_LASTBLOCK | NAND_BBT_CREATE | NAND_BBT_WRITE

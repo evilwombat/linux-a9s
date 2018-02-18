@@ -40,7 +40,11 @@
  */
 #define VMALLOC_OFFSET		(8*1024*1024)
 #define VMALLOC_START		(((unsigned long)high_memory + VMALLOC_OFFSET) & ~(VMALLOC_OFFSET-1))
+#ifndef CONFIG_PLAT_AMBARELLA_BOSS
 #define VMALLOC_END		0xff000000UL
+#else
+#define VMALLOC_END		NOLINUX_MEM_V_START
+#endif
 
 #define LIBRARY_TEXT_START	0x0c000000
 

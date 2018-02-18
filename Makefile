@@ -617,7 +617,7 @@ endif
 KBUILD_CFLAGS   += $(call cc-option, -fno-var-tracking-assignments)
 
 ifdef CONFIG_DEBUG_INFO
-KBUILD_CFLAGS	+= -g
+KBUILD_CFLAGS	+= -g -gdwarf-3
 KBUILD_AFLAGS	+= -gdwarf-2
 endif
 

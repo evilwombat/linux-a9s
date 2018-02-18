@@ -46,6 +46,9 @@ static void resume_irqs(bool want_early)
 	int irq;
 
 	for_each_irq_desc(irq, desc) {
+#ifdef CONFIG_PLAT_AMBARELLA_BOSS
+		unsigned long boss_flags;
+#endif
 		unsigned long flags;
 		bool is_early = desc->action &&
 			desc->action->flags & IRQF_EARLY_RESUME;
@@ -53,9 +56,19 @@ static void resume_irqs(bool want_early)
 		if (!is_early && want_early)
 			continue;
 
+#ifdef CONFIG_PLAT_AMBARELLA_BOSS
+                /* In BOSS, interrupt is not really disabled. */
+                /* Spinlock recursion is happened if an interrupt is pending */
+                /* and we enable it at this point. */
+                /* So we disable interrupt before enable the irq. */
+                boss_flags = arm_irq_save();
+#endif
 		raw_spin_lock_irqsave(&desc->lock, flags);
 		__enable_irq(desc, irq, true);
 		raw_spin_unlock_irqrestore(&desc->lock, flags);
+#ifdef CONFIG_PLAT_AMBARELLA_BOSS
+                arm_irq_restore(boss_flags);
+#endif
 	}
 }
 

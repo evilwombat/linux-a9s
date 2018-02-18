@@ -26,6 +26,12 @@
 #include <asm/mach/arch.h>
 #include <asm/mach-types.h>
 
+#ifdef CONFIG_PLAT_AMBARELLA_AMBALINK
+extern int __init early_ambarella_dt_scan_ppm2(unsigned long node,
+					       const char *uname, int depth,
+					       void *data);
+#endif
+
 void __init early_init_dt_add_memory_arch(u64 base, u64 size)
 {
 	arm_add_memory(base, size);
@@ -194,7 +200,14 @@ struct machine_desc * __init setup_machine_fdt(unsigned int dt_phys)
 	if (!dt_phys)
 		return NULL;
 
+#ifdef CONFIG_PLAT_AMBARELLA_BOSS
+	/* BOSS passed virtual address to Linux. */
+	/* Physical address is no longer accessible. */
+	devtree = (struct boot_param_header *)
+			phys_to_virt(dt_phys - NOLINUX_MEM_V_START);
+#else
 	devtree = phys_to_virt(dt_phys);
+#endif
 
 	/* check device tree validity */
 	if (be32_to_cpu(devtree->magic) != OF_DT_HEADER)
@@ -241,6 +254,11 @@ struct machine_desc * __init setup_machine_fdt(unsigned int dt_phys)
 	of_scan_flat_dt(early_init_dt_scan_root, NULL);
 	/* Setup memory, calling early_init_dt_add_memory_arch */
 	of_scan_flat_dt(early_init_dt_scan_memory, NULL);
+#ifdef CONFIG_PLAT_AMBARELLA_AMBALINK
+	/* Setup ppm2, calling early_ambarella_dt_scan_ppm2 */
+	/* We need to setup ppm2 before init_mm.pgd setup */
+	of_scan_flat_dt(early_ambarella_dt_scan_ppm2, NULL);
+#endif
 
 	/* Change machine number to match the mdesc we're using */
 	__machine_arch_type = mdesc_best->nr;

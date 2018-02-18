@@ -10,6 +10,10 @@
 #include <asm/tlb.h>
 
 #include <trace/events/power.h>
+#if defined(CONFIG_PLAT_AMBARELLA_BOSS)
+#include <mach/system.h>
+#include <mach/boss.h>
+#endif
 
 static int __read_mostly cpu_idle_force_poll;
 
@@ -77,7 +81,12 @@ static void cpu_idle_loop(void)
 			if (cpu_is_offline(smp_processor_id()))
 				arch_cpu_idle_dead();
 
-			local_irq_disable();
+#if defined(CONFIG_PLAT_AMBARELLA_BOSS)
+                        if (BOSS_STATE_TURBO == boss->state)
+				arm_irq_disable();
+                        else
+#endif
+				local_irq_disable();
 			arch_cpu_idle_enter();
 
 			/*
@@ -106,6 +115,7 @@ static void cpu_idle_loop(void)
 			}
 			arch_cpu_idle_exit();
 		}
+
 		tick_nohz_idle_exit();
 		schedule_preempt_disabled();
 	}

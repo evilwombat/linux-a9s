@@ -44,6 +44,26 @@ struct nand_flash_dev nand_flash_ids[] = {
 		{ .id = {0x98, 0xde, 0x94, 0x82, 0x76, 0x56, 0x04, 0x20} },
 		  SZ_8K, SZ_8K, SZ_2M, 0, 8, 640},
 
+	{"TC58NVG1S3H 2G 3.3V 8-bit",
+		{ .id = {0x98, 0xda, 0x90, 0x15, 0x76} },
+		  SZ_2K, SZ_256, SZ_128K, 0, 5, 128},
+
+	{"S34ML02G2 2G 3.3V 8-bit",
+		{ .id = {0x01, 0xda, 0x90, 0x95, 0x46} },
+		  SZ_2K, SZ_256, SZ_128K, 0, 5, 128},
+
+	{"S34ML04G2 4G 3.3V 8-bit",
+		{ .id = {0x01, 0xdc, 0x90, 0x95, 0x56} },
+		  SZ_2K, SZ_512, SZ_128K, 0, 5, 128},
+
+	{"MT29F2G08ABAFA 2G 3.3V 8-bit",
+		{ .id = {0x2c, 0xda, 0x90, 0x95, 0x04} },
+		  SZ_2K, SZ_256, SZ_128K, 0, 5, 128},
+
+	{"H27U2G8F2D 2G 3.3V 8-bit",
+		{ .id = {0xad, 0xda, 0x90, 0x95, 0x46} },
+		  SZ_2K, SZ_256, SZ_128K, 0, 5, 128},
+
 	LEGACY_ID_NAND("NAND 4MiB 5V 8-bit",   0x6B, 4, SZ_8K, SP_OPTIONS),
 	LEGACY_ID_NAND("NAND 4MiB 3,3V 8-bit", 0xE3, 4, SZ_8K, SP_OPTIONS),
 	LEGACY_ID_NAND("NAND 4MiB 3,3V 8-bit", 0xE5, 4, SZ_8K, SP_OPTIONS),

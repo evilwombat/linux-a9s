@@ -327,6 +327,13 @@ static struct mem_type mem_types[] = {
 		.prot_l1   = PMD_TYPE_TABLE,
 		.domain    = DOMAIN_KERNEL,
 	},
+	[MT_MEMORY_SHARED] = {
+		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY |
+				L_PTE_SHARED,
+		.prot_l1   = PMD_TYPE_TABLE,
+		.prot_sect = PMD_TYPE_SECT | PMD_SECT_AP_WRITE | PMD_SECT_S,
+		.domain    = DOMAIN_KERNEL,
+	},
 };
 
 const struct mem_type *get_mem_type(unsigned int type)
@@ -418,7 +425,9 @@ static void __init build_mem_type_table(void)
 			 * (Uncached Normal memory)
 			 */
 			mem_types[MT_DEVICE].prot_sect |= PMD_SECT_TEX(1);
+#if !defined(CONFIG_PLAT_AMBARELLA_ADD_REGISTER_LOCK)
 			mem_types[MT_DEVICE_NONSHARED].prot_sect |= PMD_SECT_TEX(1);
+#endif
 			mem_types[MT_DEVICE_WC].prot_sect |= PMD_SECT_BUFFERABLE;
 		} else if (cpu_is_xsc3()) {
 			/*
@@ -839,8 +848,11 @@ void __init iotable_init(struct map_desc *io_desc, int nr)
 	svm = early_alloc_aligned(sizeof(*svm) * nr, __alignof__(*svm));
 
 	for (md = io_desc; nr; md++, nr--) {
+		/* Should not change the MMU setting created by RTOS. */
+		/* Only create vm for RTOS memory, AHB, APB, and AXI. */
+#ifndef CONFIG_PLAT_AMBARELLA_BOSS
 		create_mapping(md);
-
+#endif
 		vm = &svm->vm;
 		vm->addr = (void *)(md->virtual & PAGE_MASK);
 		vm->size = PAGE_ALIGN(md->length + (md->virtual & ~PAGE_MASK));
@@ -1140,6 +1152,12 @@ static inline void prepare_page_table(void)
 	for (addr = __phys_to_virt(end);
 	     addr < VMALLOC_START; addr += PMD_SIZE)
 		pmd_clear(pmd_off_k(addr));
+
+#ifdef CONFIG_PLAT_AMBARELLA_BOSS
+#define CONSISTENT_BASE		(CONSISTENT_END - CONSISTENT_DMA_SIZE)
+	for (addr = CONSISTENT_BASE; addr < CONSISTENT_END; addr += PGDIR_SIZE)
+		pmd_clear(pmd_off_k(addr));
+#endif
 }
 
 #ifdef CONFIG_ARM_LPAE
@@ -1155,11 +1173,13 @@ static inline void prepare_page_table(void)
  */
 void __init arm_mm_memblock_reserve(void)
 {
+#ifndef CONFIG_PLAT_AMBARELLA_BOSS
 	/*
 	 * Reserve the page tables.  These are already in use,
 	 * and can only be in node 0.
 	 */
 	memblock_reserve(__pa(swapper_pg_dir), SWAPPER_PG_DIR_SIZE);
+#endif
 
 #ifdef CONFIG_SA1111
 	/*
@@ -1179,10 +1199,25 @@ void __init arm_mm_memblock_reserve(void)
  */
 static void __init devicemaps_init(struct machine_desc *mdesc)
 {
+#ifndef CONFIG_PLAT_AMBARELLA_BOSS
 	struct map_desc map;
-	unsigned long addr;
 	void *vectors;
+#endif
+	unsigned long addr;
 
+#ifdef CONFIG_PLAT_AMBARELLA_BOSS
+	/*
+	 * Allocate the vector page early.
+	 */
+	/*
+	 * Linux uses the vector created by RTOS in BOSS.
+	 * It does not need to allocate new pages for vector.
+	 */
+	early_trap_init(0);
+
+	for (addr = VMALLOC_START; addr < NOLINUX_MEM_V_START; addr += PMD_SIZE)
+		pmd_clear(pmd_off_k(addr));
+#else
 	/*
 	 * Allocate the vector page early.
 	 */
@@ -1251,6 +1286,8 @@ static void __init devicemaps_init(struct machine_desc *mdesc)
 	map.length = PAGE_SIZE;
 	map.type = MT_LOW_VECTORS;
 	create_mapping(&map);
+
+#endif  /* CONFIG_PLAT_AMBARELLA_BOSS */
 
 	/*
 	 * Ask the machine support to map in the statically mapped devices.

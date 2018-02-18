@@ -39,6 +39,10 @@
 #include <asm/thread_notify.h>
 #include <asm/stacktrace.h>
 #include <asm/mach/time.h>
+#if defined(CONFIG_PLAT_AMBARELLA_BOSS)
+#include <mach/system.h>
+#include <mach/boss.h>
+#endif
 
 #ifdef CONFIG_CC_STACKPROTECTOR
 #include <linux/stackprotector.h>
@@ -128,8 +132,11 @@ EXPORT_SYMBOL_GPL(arm_pm_restart);
 /*
  * This is our default idle handler.
  */
-
+#ifdef CONFIG_PLAT_AMBARELLA_BOSS
+void (*arm_pm_idle)(void) = arch_idle;
+#else
 void (*arm_pm_idle)(void);
+#endif
 
 static void default_idle(void)
 {

@@ -829,11 +829,18 @@ static void __init kuser_init(void *vectors)
 
 void __init early_trap_init(void *vectors_base)
 {
+#ifdef CONFIG_PLAT_AMBARELLA_BOSS
+	unsigned long vectors = CONFIG_VECTORS_BASE;
+#else
 	unsigned long vectors = (unsigned long)vectors_base;
+	unsigned i;
+#endif
 	extern char __stubs_start[], __stubs_end[];
 	extern char __vectors_start[], __vectors_end[];
-	unsigned i;
 
+#ifdef CONFIG_PLAT_AMBARELLA_BOSS
+	vectors_page = (void *) CONFIG_VECTORS_BASE;
+#else
 	vectors_page = vectors_base;
 
 	/*
@@ -844,17 +851,32 @@ void __init early_trap_init(void *vectors_base)
 	 */
 	for (i = 0; i < PAGE_SIZE / sizeof(u32); i++)
 		((u32 *)vectors_base)[i] = 0xe7fddef1;
+#endif
 
 	/*
 	 * Copy the vectors, stubs and kuser helpers (in entry-armv.S)
 	 * into the vector page, mapped at 0xffff0000, and ensure these
 	 * are visible to the instruction stream.
 	 */
+#ifdef CONFIG_PLAT_AMBARELLA_BOSS
+        /* Install Linux vector to offset 0x20. */
+        /* The jump address will be fixed in ambarella_ambalink_init_irq(). */
+        /* New Linux kernel already move __stubs_start to offset 0x1000 for security issue. */
+        /* However we need to keep the original design for BOSS. */
+        memcpy((void *)vectors + 0x20, __vectors_start, __vectors_end - __vectors_start);
+        memcpy((void *)vectors + 0x200, __stubs_start, __stubs_end - __stubs_start);
+
+        kuser_init((void *)vectors);
+
+        flush_icache_range(vectors, vectors + PAGE_SIZE);
+#else
 	memcpy((void *)vectors, __vectors_start, __vectors_end - __vectors_start);
-	memcpy((void *)vectors + 0x1000, __stubs_start, __stubs_end - __stubs_start);
+        memcpy((void *)vectors + 0x1000, __stubs_start, __stubs_end - __stubs_start);
 
 	kuser_init(vectors_base);
 
 	flush_icache_range(vectors, vectors + PAGE_SIZE * 2);
+#endif
+
 	modify_domain(DOMAIN_USER, DOMAIN_CLIENT);
 }

@@ -66,6 +66,8 @@ void virtqueue_notify(struct virtqueue *vq);
 
 void *virtqueue_get_buf(struct virtqueue *vq, unsigned int *len);
 
+void *virtqueue_get_buf_index(struct virtqueue *vq, unsigned int *len, unsigned int *index);
+
 void virtqueue_disable_cb(struct virtqueue *vq);
 
 bool virtqueue_enable_cb(struct virtqueue *vq);

@@ -368,6 +368,9 @@ static void hci_si_event(struct hci_dev *hdev, int type, int dlen, void *data)
 void hci_sock_dev_event(struct hci_dev *hdev, int event)
 {
 	struct hci_ev_si_device ev;
+#ifdef CONFIG_BT_BLUESLEEP
+	int bluesleep_hci_event(struct notifier_block *this, unsigned long event, void *data);
+#endif
 
 	BT_DBG("hdev %s event %d", hdev->name, event);
 
@@ -406,6 +409,10 @@ void hci_sock_dev_event(struct hci_dev *hdev, int event)
 		}
 		read_unlock(&hci_sk_list.lock);
 	}
+#ifdef CONFIG_BT_BLUESLEEP
+	/* control BT device wakeup/sleep */
+	bluesleep_hci_event(NULL, event, hdev);
+#endif
 }
 
 static int hci_sock_release(struct socket *sock)

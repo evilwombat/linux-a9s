@@ -527,6 +527,14 @@ config SRAM
 	  the genalloc API. It is supposed to be used for small on-chip SRAM
 	  areas found on many SoCs.
 
+config AMBARELLA_HEAPMEM
+	bool "Ambarella heap mem driver"
+	default y
+
+config AMBARELLA_DSPMEM
+	bool "Ambarella DSP mem driver"
+	default y
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"

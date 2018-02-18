@@ -214,6 +214,10 @@ targets += dtbs
 targets += $(dtb-y)
 endif
 
+ifeq ($(CONFIG_PLAT_AMBARELLA_AMBALINK),y)
+DTC_FLAGS := -p 2048
+endif
+
 # *.dtb used to be generated in the directory above. Clean out the
 # old build results so people don't accidentally use them.
 dtbs: $(addprefix $(obj)/, $(dtb-y))

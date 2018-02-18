@@ -46,7 +46,11 @@ static struct {
 	{ tag_size(tag_core), ATAG_CORE },
 	{ 1, PAGE_SIZE, 0xff },
 	{ tag_size(tag_mem32), ATAG_MEM },
+#if defined(CONFIG_AMBARELLA_RAW_BOOT)
+	{ CONFIG_AMBARELLA_MEMORY_SIZE, (DEFAULT_MEM_START + CONFIG_AMBARELLA_PPM_SIZE) },
+#else
 	{ MEM_SIZE },
+#endif
 	{ 0, ATAG_NONE }
 };
 
@@ -203,10 +207,18 @@ struct machine_desc * __init setup_machine_tags(phys_addr_t __atags_pointer,
 		dump_machine_table(); /* does not return */
 	}
 
-	if (__atags_pointer)
+	if (__atags_pointer) {
+#ifdef CONFIG_PLAT_AMBARELLA_BOSS
+		/* BOSS passed virtual address to Linux. */
+		/* Physical address is no longer accessible. */
+		tags = (struct tag *)
+			phys_to_virt(__atags_pointer - NOLINUX_MEM_V_START);
+#else
 		tags = phys_to_virt(__atags_pointer);
-	else if (mdesc->atag_offset)
+#endif
+	} else if (mdesc->atag_offset) {
 		tags = (void *)(PAGE_OFFSET + mdesc->atag_offset);
+	}
 
 #if defined(CONFIG_DEPRECATED_PARAM_STRUCT)
 	/*

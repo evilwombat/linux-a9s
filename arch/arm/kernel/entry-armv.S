@@ -1130,7 +1130,11 @@ vector_fiq:
 __vectors_start:
 	W(b)	vector_rst
 	W(b)	vector_und
-	W(ldr)	pc, __vectors_start + 0x1000
+#ifdef CONFIG_PLAT_AMBARELLA_BOSS
+	W(ldr)	pc, __vectors_start + 0x200
+#else
+        W(ldr)  pc, __vectors_start + 0x1000
+#endif
 	W(b)	vector_pabt
 	W(b)	vector_dabt
 	W(b)	vector_addrexcptn

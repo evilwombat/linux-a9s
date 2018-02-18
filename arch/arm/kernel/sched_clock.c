@@ -111,7 +111,7 @@ static void sched_clock_poll(unsigned long wrap_ticks)
 	update_sched_clock();
 }
 
-void __init setup_sched_clock(u32 (*read)(void), int bits, unsigned long rate)
+void setup_sched_clock(u32 (*read)(void), int bits, unsigned long rate)
 {
 	unsigned long r, w;
 	u64 res, wrap;

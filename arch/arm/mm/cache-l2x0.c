@@ -22,6 +22,7 @@
 #include <linux/io.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/aipc/ipc_slock.h>
 
 #include <asm/cacheflush.h>
 #include <asm/hardware/cache-l2x0.h>
@@ -30,10 +31,13 @@
 #define CACHE_LINE_SIZE		32
 
 static void __iomem *l2x0_base;
+#if !defined(CONFIG_PLAT_AMBARELLA_BOSS) && !defined(CONFIG_PLAT_AMBARELLA_AMBALINK)
 static DEFINE_RAW_SPINLOCK(l2x0_lock);
+#endif
 static u32 l2x0_way_mask;	/* Bitmask of active ways */
 static u32 l2x0_size;
 static unsigned long sync_reg_offset = L2X0_CACHE_SYNC;
+static const char *l2x0_type = NULL;
 
 /* Aurora don't have the cache ID register available, so we have to
  * pass it though the device tree */
@@ -64,6 +68,28 @@ static inline void cache_wait(void __iomem *reg, unsigned long mask)
 #else
 #define cache_wait	cache_wait_way
 #endif
+
+static inline void l2x0_cache_lock(unsigned long *flags)
+{
+#if defined(CONFIG_PLAT_AMBARELLA_BOSS) && defined(CONFIG_AMBALINK_SINGLE_CORE)
+        *flags = arm_irq_save();
+#elif defined(CONFIG_PLAT_AMBARELLA_AMBALINK)
+        aipc_spin_lock_irqsave(AMBA_IPC_SPINLOCK_L2C, flags);
+#else
+        raw_spin_lock_irqsave(&l2x0_lock, *flags);
+#endif
+}
+
+static inline void l2x0_cache_unlock(unsigned long flags)
+{
+#if defined(CONFIG_PLAT_AMBARELLA_BOSS) && defined(CONFIG_AMBALINK_SINGLE_CORE)
+        arm_irq_restore(flags);
+#elif defined(CONFIG_PLAT_AMBARELLA_AMBALINK)
+        aipc_spin_unlock_irqrestore(AMBA_IPC_SPINLOCK_L2C, flags);
+#else
+        raw_spin_unlock_irqrestore(&l2x0_lock, flags);
+#endif
+}
 
 static inline void cache_sync(void)
 {
@@ -132,9 +158,15 @@ static void l2x0_cache_sync(void)
 {
 	unsigned long flags;
 
-	raw_spin_lock_irqsave(&l2x0_lock, flags);
+        l2x0_cache_lock(&flags);
+
+	if (!(readl_relaxed(l2x0_base + L2X0_CTRL) & L2X0_CTRL_EN)) {
+                l2x0_cache_unlock(flags);
+		return;
+	}
 	cache_sync();
-	raw_spin_unlock_irqrestore(&l2x0_lock, flags);
+
+        l2x0_cache_unlock(flags);
 }
 
 static void __l2x0_flush_all(void)
@@ -151,9 +183,15 @@ static void l2x0_flush_all(void)
 	unsigned long flags;
 
 	/* clean all ways */
-	raw_spin_lock_irqsave(&l2x0_lock, flags);
+        l2x0_cache_lock(&flags);
+
+	if (!(readl_relaxed(l2x0_base + L2X0_CTRL) & L2X0_CTRL_EN)) {
+                l2x0_cache_unlock(flags);
+		return;
+	}
 	__l2x0_flush_all();
-	raw_spin_unlock_irqrestore(&l2x0_lock, flags);
+
+        l2x0_cache_unlock(flags);
 }
 
 static void l2x0_clean_all(void)
@@ -161,11 +199,17 @@ static void l2x0_clean_all(void)
 	unsigned long flags;
 
 	/* clean all ways */
-	raw_spin_lock_irqsave(&l2x0_lock, flags);
+        l2x0_cache_lock(&flags);
+
+	if (!(readl_relaxed(l2x0_base + L2X0_CTRL) & L2X0_CTRL_EN)) {
+                l2x0_cache_unlock(flags);
+		return;
+	}
 	writel_relaxed(l2x0_way_mask, l2x0_base + L2X0_CLEAN_WAY);
 	cache_wait_way(l2x0_base + L2X0_CLEAN_WAY, l2x0_way_mask);
 	cache_sync();
-	raw_spin_unlock_irqrestore(&l2x0_lock, flags);
+
+        l2x0_cache_unlock(flags);
 }
 
 static void l2x0_inv_all(void)
@@ -173,13 +217,15 @@ static void l2x0_inv_all(void)
 	unsigned long flags;
 
 	/* invalidate all ways */
-	raw_spin_lock_irqsave(&l2x0_lock, flags);
+        l2x0_cache_lock(&flags);
+
 	/* Invalidating when L2 is enabled is a nono */
 	BUG_ON(readl(l2x0_base + L2X0_CTRL) & L2X0_CTRL_EN);
 	writel_relaxed(l2x0_way_mask, l2x0_base + L2X0_INV_WAY);
 	cache_wait_way(l2x0_base + L2X0_INV_WAY, l2x0_way_mask);
 	cache_sync();
-	raw_spin_unlock_irqrestore(&l2x0_lock, flags);
+
+        l2x0_cache_unlock(flags);
 }
 
 static void l2x0_inv_range(unsigned long start, unsigned long end)
@@ -187,7 +233,12 @@ static void l2x0_inv_range(unsigned long start, unsigned long end)
 	void __iomem *base = l2x0_base;
 	unsigned long flags;
 
-	raw_spin_lock_irqsave(&l2x0_lock, flags);
+        l2x0_cache_lock(&flags);
+
+	if (!(readl_relaxed(l2x0_base + L2X0_CTRL) & L2X0_CTRL_EN)) {
+                l2x0_cache_unlock(flags);
+		return;
+	}
 	if (start & (CACHE_LINE_SIZE - 1)) {
 		start &= ~(CACHE_LINE_SIZE - 1);
 		debug_writel(0x03);
@@ -212,13 +263,14 @@ static void l2x0_inv_range(unsigned long start, unsigned long end)
 		}
 
 		if (blk_end < end) {
-			raw_spin_unlock_irqrestore(&l2x0_lock, flags);
-			raw_spin_lock_irqsave(&l2x0_lock, flags);
+                        l2x0_cache_unlock(flags);
+                        l2x0_cache_lock(&flags);
 		}
 	}
 	cache_wait(base + L2X0_INV_LINE_PA, 1);
 	cache_sync();
-	raw_spin_unlock_irqrestore(&l2x0_lock, flags);
+
+        l2x0_cache_unlock(flags);
 }
 
 static void l2x0_clean_range(unsigned long start, unsigned long end)
@@ -231,7 +283,12 @@ static void l2x0_clean_range(unsigned long start, unsigned long end)
 		return;
 	}
 
-	raw_spin_lock_irqsave(&l2x0_lock, flags);
+        l2x0_cache_lock(&flags);
+
+	if (!(readl_relaxed(l2x0_base + L2X0_CTRL) & L2X0_CTRL_EN)) {
+                l2x0_cache_unlock(flags);
+		return;
+	}
 	start &= ~(CACHE_LINE_SIZE - 1);
 	while (start < end) {
 		unsigned long blk_end = start + min(end - start, 4096UL);
@@ -242,13 +299,14 @@ static void l2x0_clean_range(unsigned long start, unsigned long end)
 		}
 
 		if (blk_end < end) {
-			raw_spin_unlock_irqrestore(&l2x0_lock, flags);
-			raw_spin_lock_irqsave(&l2x0_lock, flags);
+                        l2x0_cache_unlock(flags);
+                        l2x0_cache_lock(&flags);
 		}
 	}
 	cache_wait(base + L2X0_CLEAN_LINE_PA, 1);
 	cache_sync();
-	raw_spin_unlock_irqrestore(&l2x0_lock, flags);
+
+        l2x0_cache_unlock(flags);
 }
 
 static void l2x0_flush_range(unsigned long start, unsigned long end)
@@ -261,7 +319,12 @@ static void l2x0_flush_range(unsigned long start, unsigned long end)
 		return;
 	}
 
-	raw_spin_lock_irqsave(&l2x0_lock, flags);
+        l2x0_cache_lock(&flags);
+
+	if (!(readl_relaxed(l2x0_base + L2X0_CTRL) & L2X0_CTRL_EN)) {
+                l2x0_cache_unlock(flags);
+		return;
+	}
 	start &= ~(CACHE_LINE_SIZE - 1);
 	while (start < end) {
 		unsigned long blk_end = start + min(end - start, 4096UL);
@@ -274,24 +337,62 @@ static void l2x0_flush_range(unsigned long start, unsigned long end)
 		debug_writel(0x00);
 
 		if (blk_end < end) {
-			raw_spin_unlock_irqrestore(&l2x0_lock, flags);
-			raw_spin_lock_irqsave(&l2x0_lock, flags);
+                        l2x0_cache_unlock(flags);
+                        l2x0_cache_lock(&flags);
 		}
 	}
 	cache_wait(base + L2X0_CLEAN_INV_LINE_PA, 1);
 	cache_sync();
-	raw_spin_unlock_irqrestore(&l2x0_lock, flags);
+
+        l2x0_cache_unlock(flags);
+}
+
+static void l2x0_enable(void)
+{
+	unsigned long flags;
+
+        l2x0_cache_lock(&flags);
+
+	if (readl_relaxed(l2x0_base + L2X0_CTRL) & L2X0_CTRL_EN) {
+                l2x0_cache_unlock(flags);
+		return;
+	}
+
+	writel_relaxed(l2x0_way_mask, l2x0_base + L2X0_INV_WAY);
+	cache_wait_way(l2x0_base + L2X0_INV_WAY, l2x0_way_mask);
+	cache_sync();
+	writel_relaxed(1, l2x0_base + L2X0_CTRL);
+
+        l2x0_cache_unlock(flags);
+
+	printk(KERN_DEBUG "%s cache controller enabled\n", l2x0_type);
 }
 
 static void l2x0_disable(void)
 {
 	unsigned long flags;
 
-	raw_spin_lock_irqsave(&l2x0_lock, flags);
+        l2x0_cache_lock(&flags);
+
 	__l2x0_flush_all();
 	writel_relaxed(0, l2x0_base + L2X0_CTRL);
 	dsb();
-	raw_spin_unlock_irqrestore(&l2x0_lock, flags);
+
+        l2x0_cache_unlock(flags);
+}
+
+static int l2x0_is_enabled(void)
+{
+	unsigned long flags;
+	u32 status;
+
+        l2x0_cache_lock(&flags);
+
+	status = readl_relaxed(l2x0_base + L2X0_CTRL);
+
+        l2x0_cache_unlock(flags);
+
+	return (status & L2X0_CTRL_EN);
 }
 
 static void l2x0_unlock(u32 cache_id)
@@ -320,14 +421,14 @@ static void l2x0_unlock(u32 cache_id)
 	}
 }
 
-void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
+void l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 {
 	u32 aux;
 	u32 cache_id;
 	u32 way_size = 0;
 	int ways;
 	int way_size_shift = L2X0_WAY_SIZE_SHIFT;
-	const char *type;
+//	const char *type;
 
 	l2x0_base = base;
 	if (cache_id_part_number_from_dt)
@@ -346,7 +447,7 @@ void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 			ways = 16;
 		else
 			ways = 8;
-		type = "L310";
+		l2x0_type = "L310";
 #ifdef CONFIG_PL310_ERRATA_753970
 		/* Unmapped register. */
 		sync_reg_offset = L2X0_DUMMY_REG;
@@ -356,7 +457,7 @@ void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 		break;
 	case L2X0_CACHE_ID_PART_L210:
 		ways = (aux >> 13) & 0xf;
-		type = "L210";
+		l2x0_type = "L210";
 		break;
 
 	case AURORA_CACHE_ID:
@@ -364,12 +465,12 @@ void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 		ways = (aux >> 13) & 0xf;
 		ways = 2 << ((ways + 1) >> 2);
 		way_size_shift = AURORA_WAY_SIZE_SHIFT;
-		type = "Aurora";
+		l2x0_type = "Aurora";
 		break;
 	default:
 		/* Assume unknown chips have 8 ways */
 		ways = 8;
-		type = "L2x0 series";
+		l2x0_type = "L2x0 series";
 		break;
 	}
 
@@ -414,10 +515,13 @@ void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 		outer_cache.sync = l2x0_cache_sync;
 		outer_cache.flush_all = l2x0_flush_all;
 		outer_cache.inv_all = l2x0_inv_all;
+		outer_cache.clean_all = l2x0_clean_all;
 		outer_cache.disable = l2x0_disable;
+		outer_cache.enable = l2x0_enable;
+		outer_cache.is_enabled = l2x0_is_enabled;
 	}
 
-	printk(KERN_INFO "%s cache controller enabled\n", type);
+	printk(KERN_INFO "%s cache controller enabled\n", l2x0_type);
 	printk(KERN_INFO "l2x0: %d ways, CACHE_ID 0x%08x, AUX_CTRL 0x%08x, Cache size: %d B\n",
 			ways, cache_id, aux, l2x0_size);
 }
@@ -458,10 +562,10 @@ static void aurora_pa_range(unsigned long start, unsigned long end,
 {
 	unsigned long flags;
 
-	raw_spin_lock_irqsave(&l2x0_lock, flags);
+        l2x0_cache_lock(&flags);
 	writel_relaxed(start, l2x0_base + AURORA_RANGE_BASE_ADDR_REG);
 	writel_relaxed(end, l2x0_base + offset);
-	raw_spin_unlock_irqrestore(&l2x0_lock, flags);
+        l2x0_cache_unlock(flags);
 
 	cache_sync();
 }

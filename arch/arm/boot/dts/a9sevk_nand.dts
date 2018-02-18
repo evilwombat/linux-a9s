@@ -1,0 +1,144 @@
+/*
+ * Copyright (C) 2013 Ambarella,Inc. - http://www.ambarella.com/
+ * Author: Cao Rongrong <rrcao@ambarella.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+/dts-v1/;
+
+/include/ "ambarella-a9s.dtsi"
+
+/ {
+	model = "Ambarella A9S EVK Cheetah";
+	compatible = "ambarella,s2e";
+
+	chosen {
+                /* For pure linux set uart0. */
+		linux,stdout-path = &uart1;
+	};
+
+	apb@70000000 {
+		uart0: uart@70005000 {
+                        /* For pure linux set status to "ok". */
+			status = "disabled";
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart0_pins>;
+			/* amb,tx-fifo-fix; */
+		};
+
+		uart1: uart@7001f000 {
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart1_4pins>;
+			status = "ok";
+			/* amb,tx-fifo-fix; */
+		};
+
+		uart2: uart@70014000 {
+			status = "disabled";
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart2_pins>;
+			amb,msr-used;	/* use Modem Status Register */
+			/* amb,tx-fifo-fix; */
+		};
+
+		uart3: uart@70015000 {
+			status = "disabled";
+			amb,msr-used;	/* use Modem Status Register */
+			/* amb,tx-fifo-fix; */
+		};
+
+		rtc@7000d000 {
+			status = "ok";
+		};
+
+		i2c0: i2c@70003000 {
+			status = "disabled";
+	        };
+
+		i2c1: i2c@70007000 {
+			status = "disabled";
+	        };
+
+		i2c2: i2c@70013000 {
+			status = "disabled";
+
+			pca9539: pca9539@74 {
+				compatible = "nxp,pca9539";
+				reg = <0x74>;
+				interrupt-parent = <&gpio>;
+				interrupts = <11 0x0>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+			};
+
+			isl12022m: isl12022m@6f {
+				compatible = "isl12022";
+				reg = <0x6f>;
+			};
+	        };
+
+		spi0: spi@70002000 {
+			cs-gpios = <&gpio 5 0>, <&gpio 6 0>;
+
+			ambvin0@0 {
+				compatible = "ambarella,ambvin";
+				reg = <0>;
+				spi-max-frequency = <1000000>;
+				spi-cpha;
+				spi-cpol;
+			};
+		};
+
+		ir@70006000 {
+			amb,protocol = <1>;
+			amb,keymap =
+				<0x0100bcbd 116>, /* KEY_POWER */
+				<0x01000405 115>, /* KEY_VOLUMEUP */
+				<0x01008485 114>; /* KEY_VOLUMEDOWN */
+			/* amb,print-key; */
+		};
+	};
+
+	ahb@60000000 {
+		sdmmc0@60002000 {
+                        /* For pure linux set status to "ok". */
+			status = "disabled";
+
+			slot@0 {
+				pwr-gpios = <&pca9539 0 0x1>;
+				v18-gpios = <&gpio 22 0x0>;
+				max-frequency = <128000000>;
+			};
+		};
+
+		sdmmc1@6000c000 {
+			slot@0 {
+				bus-width = <4>;
+				no-1-8-v;
+			};
+		};
+
+		mac0: ethernet@6000e000 {
+			status = "ok";
+
+			phy@1 {
+				reg = <1>;
+			};
+		};
+	};
+
+	rct@70170000 {
+		usbphy: usbphy@70170050 {
+			/* low will trigger the ocp interrupt */
+			amb,ocp-polarity = <0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&usb_host_pins>;
+		};
+	};
+
+};
+

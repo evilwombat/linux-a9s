@@ -23,6 +23,11 @@
 #include <asm/ptrace.h>
 #include <asm/domain.h>
 #include <asm/opcodes-virt.h>
+#ifdef CONFIG_PLAT_AMBARELLA_BOSS
+#define __ASM__
+#include <mach/hardware.h>
+#include <mach/boss.h>
+#endif
 
 #define IOMEM(x)	(x)
 
@@ -83,12 +88,115 @@
 #if __LINUX_ARM_ARCH__ >= 6
 	.macro	disable_irq_notrace
 	cpsid	i
+
+#if 0//defined(CONFIG_PLAT_AMBARELLA_BOSS)
+	stmfd	sp!, {r0-r1}
+
+	ldr	r1, =boss
+	ldr	r0, [r1]
+	mov	r1, #1
+	str	r1, [r0, #BOSS_GUEST_IRQ_MASK_OFFSET]
+
+#if defined(CONFIG_ARM_GIC)
+	mov     r3, #0
+1:
+	mov     r2, #BOSS_INT0MASK_OFFSET
+	add     r2, r2, r3
+	ldr     r1, [r0, r2]
+	mov     r2, #BOSS_GUEST_INT0_EN_OFFSET
+	add     r2, r2, r3
+	ldr     r2, [r0, r2]
+	and     r1, r1, r2
+
+	ldr     r2, =AMBARELLA_VA_GIC_DIST_BASE
+	orr     r2, r2, #GIC_CLEAR_ENABLE_OFFSET
+	str     r1, [r2, r3]
+
+	add     r3, r3, #4
+	cmp     r3, #32
+	bne     1b
+#else
+	ldr	r1, [r0, #BOSS_INT0MASK_OFFSET]
+	ldr	r2, [r0, #BOSS_GUEST_INT0_EN_OFFSET]
+	and	r1, r1, r2
+	ldr	r2, =VIC_BASE
+	str	r1, [r2, #VIC_INTEN_CLR_OFFSET]
+
+	ldr	r1, [r0, #BOSS_INT1MASK_OFFSET]
+	ldr	r2, [r0, #BOSS_GUEST_INT1_EN_OFFSET]
+	and	r1, r1, r2
+	ldr	r2, =VIC2_BASE
+	str	r1, [r2, #VIC_INTEN_CLR_OFFSET]
+
+	ldr	r1, [r0, #BOSS_INT2MASK_OFFSET]
+	ldr	r2, [r0, #BOSS_GUEST_INT2_EN_OFFSET]
+	and	r1, r1, r2
+	ldr	r2, =VIC3_BASE
+	str	r1, [r2, #VIC_INTEN_CLR_OFFSET]
+#endif	/* CONFIG_ARM_GIC */
+
+	ldmfd	sp!, {r0-r1}
+#endif	/* CONFIG_PLAT_AMBARELLA_BOSS */
+
 	.endm
 
 	.macro	enable_irq_notrace
+
+#if 0//defined(CONFIG_PLAT_AMBARELLA_BOSS)
+	cpsid	i
+
+	stmfd	sp!, {r0-r1}
+
+	ldr	r1, =boss
+	ldr	r0, [r1]
+	mov	r1, #0
+	str	r1, [r0, #BOSS_GUEST_IRQ_MASK_OFFSET]
+
+#if defined(CONFIG_ARM_GIC)
+	mov     r3, #0
+1:
+	mov     r2, #BOSS_INT0MASK_OFFSET
+	add     r2, r2, r3
+	ldr     r1, [r0, r2]
+	mov     r2, #BOSS_GUEST_INT0_EN_OFFSET
+
+	add     r2, r2, r3
+	ldr     r2, [r0, r2]
+	and     r1, r1, r2
+
+	ldr     r2, =AMBARELLA_VA_GIC_DIST_BASE
+	orr     r2, r2, #GIC_SET_ENABLE_OFFSET
+	str     r1, [r2, r3]
+
+	add     r3, r3, #4
+	cmp     r3, #32
+	bne     1b
+#else
+	ldr	r1, [r0, #BOSS_INT0MASK_OFFSET]
+	ldr	r2, [r0, #BOSS_GUEST_INT0_EN_OFFSET]
+	and	r1, r1, r2
+	ldr	r2, =VIC_BASE
+	str	r1, [r2, #VIC_INTEN_OFFSET]
+
+	ldr	r1, [r0, #BOSS_INT1MASK_OFFSET]
+	ldr	r2, [r0, #BOSS_GUEST_INT1_EN_OFFSET]
+	and	r1, r1, r2
+	ldr	r2, =VIC2_BASE
+	str	r1, [r2, #VIC_INTEN_OFFSET]
+
+	ldr	r1, [r0, #BOSS_INT2MASK_OFFSET]
+	ldr	r2, [r0, #BOSS_GUEST_INT2_EN_OFFSET]
+	and	r1, r1, r2
+	ldr	r2, =VIC3_BASE
+	str	r1, [r2, #VIC_INTEN_OFFSET]
+#endif	/* CONFIG_ARM_GIC */
+
+	ldmfd	sp!, {r0-r1}
+#endif	/* CONFIG_PLAT_AMBARELLA_BOSS */
+
 	cpsie	i
 	.endm
-#else
+#else	/* __LINUX_ARM_ARCH__ < 6 */
 	.macro	disable_irq_notrace
 	msr	cpsr_c, #PSR_I_BIT | SVC_MODE
 	.endm

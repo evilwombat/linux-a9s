@@ -28,6 +28,13 @@
 #include "sdio_ops.h"
 #include "sdio_cis.h"
 
+/* Do not limit SDIO to 50MHz in mmc stack, config it in dtb instead */
+#ifdef CONFIG_PLAT_AMBARELLA_AMBALINK
+#define HS_MAX_DTR 50000000*2
+#else
+#define HS_MAX_DTR 50000000
+#endif
+
 static int sdio_read_fbr(struct sdio_func *func)
 {
 	int ret;
@@ -188,7 +195,7 @@ static int sdio_read_cccr(struct mmc_card *card, u32 ocr)
 		if (!card->sw_caps.sd3_bus_mode) {
 			if (speed & SDIO_SPEED_SHS) {
 				card->cccr.high_speed = 1;
-				card->sw_caps.hs_max_dtr = 50000000;
+				card->sw_caps.hs_max_dtr = HS_MAX_DTR;
 			} else {
 				card->cccr.high_speed = 0;
 				card->sw_caps.hs_max_dtr = 25000000;
@@ -370,7 +377,7 @@ static unsigned mmc_sdio_get_max_clock(struct mmc_card *card)
 		 * high-speed, but it seems that 50 MHz is
 		 * mandatory.
 		 */
-		max_dtr = 50000000;
+		max_dtr = HS_MAX_DTR;
 	} else {
 		max_dtr = card->cis.max_dtr;
 	}

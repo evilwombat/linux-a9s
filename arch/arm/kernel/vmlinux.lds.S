@@ -164,7 +164,11 @@ SECTIONS
 	__vectors_end = .;
 
 	__stubs_start = .;
+#ifdef CONFIG_PLAT_AMBARELLA_BOSS
+	.stubs 0x200 : AT(__stubs_start) {
+#else
 	.stubs 0x1000 : AT(__stubs_start) {
+#endif
 		*(.stubs)
 	}
 	. = __stubs_start + SIZEOF(.stubs);

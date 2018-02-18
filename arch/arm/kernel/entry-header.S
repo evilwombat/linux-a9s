@@ -22,7 +22,7 @@
 @
 #define S_OFF		8
 
-/* 
+/*
  * The SWI code relies on the fact that R0 is at the bottom of the stack
  * (due to slow/fast restore user regs).
  */
@@ -74,6 +74,88 @@
 	.endm
 
 #ifndef CONFIG_THUMB2_KERNEL
+	@
+	@ For BOSS INT handling only:
+	@ The macro is called after we are done with handling INT but before we
+	@ return back to normal execution. At this point, guest_irq is likely
+	@ enabled/disabled serverl times. Before we clear I bit through SPSR
+	@ manipulation, we must clear software GUEST_IRQ_MASK and set all
+	@ guest IRQ vic bits. Otherwise, guest irq will never get a chance
+	@ to fire up.
+	@
+	.macro  boss_ret_prefix, rpsr
+#if defined(CONFIG_PLAT_AMBARELLA_BOSS)
+	@ Force to disable interrupt while doing boss interrupt update.
+	@ Normally, interrupt is disabled before calling this macro,
+	@ but sometimes interrupt is enabled in irq_exit() -> __do_softirq().
+	cpsid	i
+	ldr	r4, =boss
+	ldr	r4, [r4]
+	tst	\rpsr, #0x80
+	moveq	r1, #0
+	movne	r1, #1
+
+	@ set/clear boss->guest_irq_mask
+	str     r1, [r4, #BOSS_GUEST_IRQ_MASK_OFFSET]
+
+#if defined(CONFIG_ARM_GIC)
+	moveq	r2, #GIC_SET_ENABLE_OFFSET
+	movne	r2, #GIC_CLEAR_ENABLE_OFFSET
+	ldr	r3, =AMBARELLA_VA_GIC_DIST_BASE
+	orr	r2, r3, r2
+
+	@ enable/diable gicNmask IRQs
+	mov	r1, #BOSS_INT0MASK_OFFSET
+	mov	r3, #BOSS_GUEST_INT0_EN_OFFSET
+	mov	r5, #0
+1:
+	add	r6, r1, r5
+	ldr	r7, [r4, r6]
+	add	r6, r3, r5
+	ldr	r6, [r4, r6]
+	and	r7, r7, r6
+
+	str	r7, [r2, r5]
+
+	add	r5, r5, #4
+	cmp	r5, #32
+	bne	1b
+
+#else
+	moveq   r2, #VIC_INTEN_OFFSET
+	movne   r2, #VIC_INTEN_CLR_OFFSET
+
+	@ enable/disable vicNmask IRQs
+	ldr	r1, [r4, #BOSS_INT0MASK_OFFSET]
+	ldr 	r3, [r4, #BOSS_GUEST_INT0_EN_OFFSET]
+	and 	r1, r1, r3
+	ldr     r3, =VIC_BASE
+	str     r1, [r3, r2]
+
+	ldr	r1, [r4, #BOSS_INT1MASK_OFFSET]
+	ldr 	r3, [r4, #BOSS_GUEST_INT1_EN_OFFSET]
+	and 	r1, r1, r3
+	ldr     r3, =VIC2_BASE
+	str     r1, [r3, r2]
+
+	ldr	r1, [r4, #BOSS_INT2MASK_OFFSET]
+	ldr	r3, [r4, #BOSS_GUEST_INT2_EN_OFFSET]
+	and	r1, r1, r3
+	ldr	r3, =VIC3_BASE
+	str	r1, [r3, r2]
+
+#if (CHIP_REV == S3)
+	ldr	r1, [r4, #BOSS_INT3MASK_OFFSET]
+	ldr	r3, [r4, #BOSS_GUEST_INT3_EN_OFFSET]
+	and	r1, r1, r3
+	ldr	r3, =VIC4_BASE
+	str	r1, [r3, r2]
+#endif
+
+#endif
+#endif
+	.endm
+
 	.macro	svc_exit, rpsr, irq = 0
 	.if	\irq != 0
 	@ IRQs already off
@@ -93,6 +175,7 @@
 #endif
 	.endif
 	msr	spsr_cxsf, \rpsr
+	boss_ret_prefix \rpsr
 #if defined(CONFIG_CPU_V6)
 	ldr	r0, [sp]
 	strex	r1, r2, [sp]			@ clear the exclusive monitor
@@ -109,6 +192,7 @@
 	ldr	r1, [sp, #\offset + S_PSR]	@ get calling cpsr
 	ldr	lr, [sp, #\offset + S_PC]!	@ get pc
 	msr	spsr_cxsf, r1			@ save in spsr_svc
+	boss_ret_prefix r1
 #if defined(CONFIG_CPU_V6)
 	strex	r1, r2, [sp]			@ clear the exclusive monitor
 #elif defined(CONFIG_CPU_32v6K)
