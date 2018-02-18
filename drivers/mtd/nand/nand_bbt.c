@@ -1241,7 +1241,7 @@ int nand_update_bbt(struct mtd_info *mtd, loff_t offs)
 static uint8_t scan_ff_pattern[] = { 0xff, 0xff };
 
 /* Generic flash bbt descriptors */
-#ifdef CONFIG_PLAT_AMBARELLA_AMBALINK
+#if 1
 static uint8_t bbt_pattern[] = {'B', 'b', 't', '2' };
 static uint8_t mirror_pattern[] = {'3', 't', 'b', 'B' };
 

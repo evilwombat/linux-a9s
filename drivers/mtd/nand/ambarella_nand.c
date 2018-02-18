@@ -164,7 +164,7 @@ static struct nand_ecclayout amb_oobinfo_2048_dsm_ecc8 = {
 			{66, 17}, {98, 17}}
 };
 
-#ifdef CONFIG_PLAT_AMBARELLA_AMBALINK
+#if 1
 /*
  * The generic flash bbt decriptors overlap with our ecc
  * hardware, so define some Ambarella specific ones.
@@ -337,7 +337,7 @@ static void nand_amb_enable_bch(struct ambarella_nand_info *nand_info)
 
 static void nand_amb_disable_bch(struct ambarella_nand_info *nand_info)
 {
-#ifndef CONFIG_PLAT_AMBARELLA_AMBALINK
+#if 0
 	u32 fio_ctr_reg = 0;
 
 	fio_ctr_reg = amba_readl(nand_info->regbase + FIO_CTR_OFFSET);
@@ -1745,7 +1745,7 @@ static int ambarella_nand_init_chip(struct ambarella_nand_info *nand_info,
 
 	if (of_get_nand_on_flash_bbt(np)) {
 		printk(KERN_INFO "ambarella_nand: Use On Flash BBT\n");
-#ifdef CONFIG_PLAT_AMBARELLA_AMBALINK
+#if 1
 		chip->bbt_options |= NAND_BBT_USE_FLASH;
 		if (nand_info->ecc_bits > 1) {
 			chip->bbt_td = &bbt_main_descr_dsm;
