@@ -2521,4 +2521,16 @@ config FB_SSD1307
 	  This driver implements support for the Solomon SSD1307
 	  OLED controller over I2C.
 
+config FB_ST7571
+	tristate "Sitronix ST7571 Framebuffer Support"
+	depends on FB && SPI
+	select FB_SYS_FILLRECT
+	select FB_SYS_COPYAREA
+	select FB_SYS_IMAGEBLIT
+	select FB_SYS_FOPS
+	select FB_DEFERRED_IO
+	help
+          Framebuffer driver for the Sitronix ST7571 SPI LCDs. Currently,
+	  only 3-wire (8-bit) SPI interface mode is supported.
+
 endmenu
